@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  worldcup:
+    build: .
+    container_name: worldcup
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - intelligent-blue-economy_default
+
+networks:
+  intelligent-blue-economy_default:
+    external: true
