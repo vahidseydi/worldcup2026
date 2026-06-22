@@ -37,11 +37,13 @@
       <section class="card">
         <h2 class="section-title">Tournament Path</h2>
         <p class="section-desc">
-          Probability of reaching each stage, based on Bayesian inference from confirmed match results.
+          Probability of reaching each stage. Purple bar shows your scenario prediction.
         </p>
         <TournamentPath
           :round-probs="probs.round_probs"
           :qualify-prob="probs.qualify_prob"
+          :scenario-round-probs="scenarioProbs?.round_probs ?? null"
+          :scenario-qualify-prob="scenarioProbs?.qualify_prob ?? null"
         />
       </section>
 
@@ -115,7 +117,18 @@
                 <span class="match-score" v-if="m.is_confirmed">
                   {{ m.home_score }} – {{ m.away_score }}
                 </span>
-                <span class="match-score future" v-else>vs</span>
+                <template v-else-if="predictedIds.has(m.id)">
+                  <span class="match-score predicted">
+                    {{ predictionFor(m.id)?.home_score ?? '?' }} – {{ predictionFor(m.id)?.away_score ?? '?' }}
+                  </span>
+                </template>
+                <template v-else>
+                  <div class="score-inputs">
+                    <input v-model.number="scoreFor(m.id).home" type="number" min="0" max="20" class="score-box" />
+                    <span class="score-dash">–</span>
+                    <input v-model.number="scoreFor(m.id).away" type="number" min="0" max="20" class="score-box" />
+                  </div>
+                </template>
                 <span class="match-team away" :class="{ 'is-me': m.away_team === code }">
                   {{ teamName(m.away_team) }} {{ teamFlag(m.away_team) }}
                 </span>
@@ -123,7 +136,16 @@
               <span v-if="m.is_confirmed" class="result-badge" :class="resultClass(m)">
                 {{ resultLabel(m) }}
               </span>
-              <span v-else class="result-badge upcoming">Upcoming</span>
+              <template v-else-if="predictedIds.has(m.id)">
+                <button class="result-badge predicted-badge" @click="removePrediction(m.id)">
+                  Scenario ✕
+                </button>
+              </template>
+              <template v-else>
+                <button class="result-badge predict-btn" @click="predict(m)">
+                  Predict
+                </button>
+              </template>
             </div>
           </div>
         </div>
@@ -133,9 +155,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTournamentStore } from '@/stores/tournament'
+import { usePredictionsStore } from '@/stores/predictions'
 import TournamentPath from '@/components/TournamentPath.vue'
 import OpponentList from '@/components/OpponentList.vue'
 import { teamFlag, teamName } from '@/data/teams'
@@ -143,15 +166,48 @@ import { teamFlag, teamName } from '@/data/teams'
 const route  = useRoute()
 const router = useRouter()
 const store  = useTournamentStore()
+const predictionsStore = usePredictionsStore()
 
 const code = computed(() => route.params.code)
 const flag = computed(() => teamFlag(code.value))
 const fullName = computed(() => teamName(code.value))
 const probs = computed(() => store.teamProbs[code.value] ?? null)
+const scenarioProbs = computed(() => store.scenarioTeamProbs[code.value] ?? null)
 
-onMounted(() => {
+onMounted(async () => {
   if (!store.hasData) store.refresh()
+  await predictionsStore.load()
+  store.loadScenarioState()
 })
+
+// Score inputs: { [matchId]: { home: 0, away: 0 } }
+const pendingScores = ref({})
+function scoreFor(matchId) {
+  if (!pendingScores.value[matchId]) pendingScores.value[matchId] = { home: 0, away: 0 }
+  return pendingScores.value[matchId]
+}
+
+const predictedIds = computed(() => new Set(predictionsStore.predictions.map(p => p.id)))
+function predictionFor(matchId) {
+  return predictionsStore.predictions.find(p => p.id === matchId) ?? null
+}
+
+async function predict(match) {
+  const s = scoreFor(match.id)
+  await predictionsStore.add({
+    match_id: match.id,
+    home_team: match.home_team,
+    away_team: match.away_team,
+    home_score: s.home,
+    away_score: s.away,
+    stage: match.stage?.toLowerCase() ?? 'group',
+    group: match.group ?? null,
+  })
+}
+
+async function removePrediction(matchId) {
+  await predictionsStore.remove(matchId)
+}
 
 // Find which group this team belongs to
 const groupId = computed(() => {
@@ -434,6 +490,50 @@ function resultLabel(m) {
 .result-badge.loss    { background: #fee2e2; color: #991b1b; }
 .result-badge.draw    { background: #fef3c7; color: #92400e; }
 .result-badge.upcoming { background: #e5e7eb; color: #6b7280; }
+
+/* Score prediction inputs */
+.score-inputs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.score-box {
+  width: 36px;
+  text-align: center;
+  padding: 2px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  -moz-appearance: textfield;
+}
+.score-box::-webkit-inner-spin-button,
+.score-box::-webkit-outer-spin-button { -webkit-appearance: none; }
+.score-box:focus { outline: none; border-color: #7c3aed; }
+.score-dash { font-weight: 700; color: var(--text-muted); }
+
+.match-score.predicted { color: #7c3aed; font-weight: 800; }
+
+.predict-btn {
+  cursor: pointer;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+}
+.predict-btn:hover { background: #6d28d9; }
+
+.predicted-badge {
+  cursor: pointer;
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+  border-radius: 20px;
+  font-size: 0.7rem;
+}
+.predicted-badge:hover { background: #ede9fe; }
 
 .no-matches { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; }
 </style>

@@ -15,7 +15,9 @@ class PredictionRequest(BaseModel):
     match_id: int
     home_team: str
     away_team: str
-    result: MatchResult
+    home_score: Optional[int] = None
+    away_score: Optional[int] = None
+    result: Optional[MatchResult] = None   # auto-derived from scores when omitted
     stage: MatchStage = MatchStage.GROUP
     group: Optional[str] = None
 
@@ -27,13 +29,26 @@ async def list_predictions():
 
 @router.post("/")
 async def add_prediction(body: PredictionRequest):
+    result = body.result
+    if result is None:
+        if body.home_score is None or body.away_score is None:
+            raise HTTPException(422, "Provide either result or both home_score and away_score")
+        if body.home_score > body.away_score:
+            result = MatchResult.HOME_WIN
+        elif body.home_score < body.away_score:
+            result = MatchResult.AWAY_WIN
+        else:
+            result = MatchResult.DRAW
+
     match = Match(
         id=body.match_id,
         stage=body.stage,
         group=body.group,
         home_team=body.home_team,
         away_team=body.away_team,
-        result=body.result,
+        home_score=body.home_score,
+        away_score=body.away_score,
+        result=result,
         is_confirmed=False,
     )
     await get_manager().add_prediction(match)
