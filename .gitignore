@@ -23,7 +23,6 @@ pip-wheel-metadata/
 
 # ── Node / Vue ──────────────────────────────────────────────────────────
 frontend/node_modules/
-frontend/dist/
 frontend/.vite/
 *.local
 
