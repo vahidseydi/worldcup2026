@@ -1,0 +1,71 @@
+app:
+  name: "World Cup 2026 Dashboard"
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+
+simulation:
+  n_particles: 2000           # particles in the particle filter posterior
+  n_monte_carlo: 10000        # forward simulations per distribution update
+  random_seed: 42
+  draw_tendency: 0.28         # Davidson θ — calibrated to historical WC draw rate ~22%
+  strength_init_sigma: 0.25   # log-normal spread when initialising particles from prior
+  jitter_sigma: 0.04          # noise added after resampling to maintain diversity
+  resample_ess_threshold: 0.5 # resample when ESS < n_particles * threshold
+  mean_goals_per_match: 2.7   # avg total goals per group-stage match; used in Poisson likelihood
+
+football_api:
+  base_url: "https://api.football-data.org/v4"
+  competition_id: 2000        # FIFA World Cup code on football-data.org
+  poll_interval_seconds: 60
+  timeout_seconds: 10
+  # API key injected from environment: FOOTBALL_DATA_API_KEY
+
+prior:
+  default_sources:
+    - "flat"
+  available_sources:
+    - id: "fifa"
+      label: "FIFA Rankings"
+      description: "Official FIFA World Rankings converted to strength scores"
+    - id: "elo"
+      label: "World Elo Ratings"
+      description: "Historical Elo ratings for national teams"
+    - id: "odds"
+      label: "Betting Market Odds"
+      description: "Market-implied tournament win probabilities"
+    - id: "flat"
+      label: "Match results only"
+      description: "Equal prior — all teams start identical; probabilities come entirely from WC 2026 match scores"
+
+qualification:
+  automatic_per_group: 2
+  best_third_places: 8
+  total_groups: 12
+
+knockout_rounds:
+  - id: "r32"
+    label: "Round of 32"
+    teams: 32
+  - id: "r16"
+    label: "Round of 16"
+    teams: 16
+  - id: "qf"
+    label: "Quarter Finals"
+    teams: 8
+  - id: "sf"
+    label: "Semi Finals"
+    teams: 4
+  - id: "final"
+    label: "Final"
+    teams: 2
+  - id: "winner"
+    label: "Winner"
+    teams: 1
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s [%(levelname)s] %(name)s — %(message)s"

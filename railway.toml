@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+# Install Python deps, then build the Vue app
+buildCommand = "pip install -r backend/requirements.txt && cd frontend && npm install && npm run build"
+
+[deploy]
+startCommand = "python -m backend.main"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
