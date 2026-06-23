@@ -18,6 +18,7 @@ git push
 echo "==> Deploying to server..."
 ssh -i $SSH_KEY $SERVER bash << 'REMOTE'
   set -e
+  NGINX_CONTAINER=intelligent-blue-economy_nginx_1
   cd /root/worldcup2026
   git pull
   docker rm -f worldcup 2>/dev/null || true
