@@ -20,6 +20,7 @@ ssh -i $SSH_KEY $SERVER bash << 'REMOTE'
   set -e
   cd /root/worldcup2026
   git pull
+  docker rm -f worldcup 2>/dev/null || true
   docker compose up -d --build
 
   # Ensure worldcup nginx block is present — add it if missing
