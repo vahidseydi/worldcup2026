@@ -60,6 +60,15 @@
         />
       </section>
 
+      <!-- Section: Scenario Predictions -->
+      <section class="card scenario-card">
+        <h2 class="section-title">Scenario Predictions</h2>
+        <p class="section-desc">
+          Predict any upcoming match across all groups. The tournament path and opponents above update after each prediction.
+        </p>
+        <PredictionPanel />
+      </section>
+
       <!-- Section: Group Matches -->
       <section class="card">
         <h2 class="section-title">Group {{ groupId }} Matches</h2>
@@ -161,6 +170,7 @@ import { useTournamentStore } from '@/stores/tournament'
 import { usePredictionsStore } from '@/stores/predictions'
 import TournamentPath from '@/components/TournamentPath.vue'
 import OpponentList from '@/components/OpponentList.vue'
+import PredictionPanel from '@/components/PredictionPanel.vue'
 import { teamFlag, teamName } from '@/data/teams'
 
 const route  = useRoute()
@@ -536,4 +546,7 @@ function resultLabel(m) {
 .predicted-badge:hover { background: #ede9fe; }
 
 .no-matches { color: var(--text-muted); font-size: 0.85rem; padding: 8px 0; }
+
+/* ── Scenario card accent ── */
+.scenario-card { border-left: 3px solid #7c3aed; }
 </style>
