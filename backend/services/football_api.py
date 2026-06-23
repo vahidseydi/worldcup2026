@@ -113,8 +113,36 @@ class FootballAPIClient:
             logger.error("API request failed: %s", exc)
             return []
 
+    def _adaptive_interval(self, matches: List[Match]) -> int:
+        """Return the next poll interval based on match activity.
+
+        Live match present      → 60 s  (catch goals in near-real-time)
+        Match finishing within 3 h → 2 min (match imminent or just ended)
+        Otherwise               → 10 min (nothing happening)
+        """
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+
+        live_statuses = {"IN_PLAY", "PAUSED", "HALFTIME"}
+        for m in matches:
+            # is_confirmed=False but result is set → recently finished, stay alert
+            if not m.is_confirmed and m.result is not None:
+                return 120
+            if m.scheduled_at:
+                try:
+                    kickoff = datetime.fromisoformat(m.scheduled_at.replace("Z", "+00:00"))
+                    delta = (kickoff - now).total_seconds()
+                    # Within 30 min before or 2 h after kickoff — could be live
+                    if -7200 < delta < 1800:
+                        return 60
+                except ValueError:
+                    pass
+
+        # No live or imminent match → slow polling
+        return 600
+
     async def poll(self, on_update: Callable[[List[Match]], Awaitable[None]]) -> None:
-        """Poll forever, calling on_update whenever a fetch succeeds."""
+        """Poll adaptively: fast during live matches, slow otherwise."""
         if not self._api_key:
             logger.warning("Polling skipped — no API key configured")
             return
@@ -122,7 +150,12 @@ class FootballAPIClient:
             matches = await self.fetch_matches()
             if matches:
                 await on_update(matches)
-            await asyncio.sleep(self._poll_interval)
+                interval = self._adaptive_interval(matches)
+            else:
+                interval = self._poll_interval  # fallback to config default on error
+            if interval != self._poll_interval:
+                logger.info("Adaptive poll interval: %ds", interval)
+            await asyncio.sleep(interval)
 
     async def close(self) -> None:
         await self._client.aclose()
