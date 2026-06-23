@@ -54,9 +54,9 @@
           Conditional on reaching each round — who is the model most likely to send your way?
         </p>
         <OpponentList
-          :opponents="probs.opponents"
-          :round-probs="probs.round_probs"
-          :qualify-prob="probs.qualify_prob"
+          :opponents="scenarioProbs?.opponents ?? probs.opponents"
+          :round-probs="scenarioProbs?.round_probs ?? probs.round_probs"
+          :qualify-prob="scenarioProbs?.qualify_prob ?? probs.qualify_prob"
         />
       </section>
 
@@ -240,7 +240,7 @@ const qualifyClass = computed(() => {
 const myMatches = computed(() =>
   store.matches.filter(
     m =>
-      m.stage === 'GROUP_STAGE' &&
+      m.stage === 'group' &&
       (m.home_team === code.value || m.away_team === code.value)
   )
 )

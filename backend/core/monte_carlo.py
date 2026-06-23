@@ -143,12 +143,20 @@ class MonteCarloSimulator:
         best8_cols  = third_ranks[:, :8]                       # (n, 8)
         best8       = third_g[arange_n[:, None], best8_cols]  # (n, 8)
 
-        # Qualified: 12 firsts + 12 seconds + 8 best-thirds = 32 teams
-        qualified = np.concatenate([first_g, second_g, best8], axis=1)  # (n, 32)
+        # ── Structured R32 bracket ────────────────────────────────────────
+        # Slot assignments (no same-group R32 matchups):
+        #   Slot 2i   → winner of group i      (groups in order A,B,...,L)
+        #   Slot 2i+1 → runner of group (i+1) mod n_groups
+        #   → R32 pair (2i, 2i+1) = 1{group_i} vs 2{group_(i+1)}
+        # The 8 best thirds fill slots 24-31, pairing among themselves.
+        bracket = np.empty((n, 32), dtype=np.int32)
+        for i in range(n_groups):
+            bracket[:, 2 * i]     = first_g[:, i]
+            bracket[:, 2 * i + 1] = second_g[:, (i + 1) % n_groups]
+        for j in range(8):
+            bracket[:, 24 + j] = best8[:, j]
 
-        # Random bracket shuffle — each simulation independently
-        shuffle_idx = self._rng.random((n, 32)).argsort(axis=1)
-        qualified   = qualified[arange_n[:, None], shuffle_idx]          # (n, 32)
+        qualified = bracket
 
         # ── Track reach ────────────────────────────────────────────────────
         # reach[sim, team] = highest round index reached (-1 = group out)
