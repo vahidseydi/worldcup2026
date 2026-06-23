@@ -20,7 +20,7 @@ ssh -i $SSH_KEY $SERVER bash << 'REMOTE'
   set -e
   cd /root/worldcup2026
   git pull
-  docker-compose up -d --build
+  docker compose up -d --build
 
   # Ensure worldcup nginx block is present — add it if missing
   if ! grep -q "worldcup.bluevision-ai.org" /root/intelligent-blue-economy/nginx/nginx.conf; then
@@ -47,9 +47,9 @@ c = c.replace('    upstream api {', block + '    upstream api {')
 c = c.rstrip().rstrip('}') + server + '}\n'
 open('/root/intelligent-blue-economy/nginx/nginx.conf','w').write(c)
 "
-    docker restart $NGINX_CONTAINER
+    docker restart "$NGINX_CONTAINER"
   else
-    docker exec $NGINX_CONTAINER nginx -s reload
+    docker exec "$NGINX_CONTAINER" nginx -s reload
   fi
 REMOTE
 
