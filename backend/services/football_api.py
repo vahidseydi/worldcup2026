@@ -116,11 +116,12 @@ class FootballAPIClient:
     def _adaptive_interval(self, matches: List[Match]) -> int:
         """Return the next poll interval based on match activity.
 
-        Match live or within 30 min of kickoff  → 60 s
-        Match just finished (cooling window)     → 120 s
+        Match within 30 min of kickoff or up to
+          3 h after kickoff (covers extra time)  → 60 s
+        Match result set but not yet confirmed   → 120 s
         No live match: sleep until 5 min before
-          the next scheduled kickoff             → up to 6 h
-        Nothing scheduled at all                 → 3600 s fallback
+          the next scheduled kickoff             → max 30 min
+        Nothing scheduled                        → 30 min fallback
         """
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
@@ -130,24 +131,26 @@ class FootballAPIClient:
             if m.is_confirmed:
                 continue
             if m.result is not None:
-                return 120  # recently finished, stay alert briefly
+                return 120  # result arrived but not yet confirmed — stay alert
             if m.scheduled_at:
                 try:
                     kickoff = datetime.fromisoformat(m.scheduled_at.replace("Z", "+00:00"))
                     delta = (kickoff - now).total_seconds()
-                    if -7200 < delta < 1800:
-                        return 60   # match is live or about to start
+                    # 30 min before kickoff up to 3 hours after — covers stoppage + extra time
+                    if -10800 < delta < 1800:
+                        return 60
                     if delta > 0:
                         upcoming_kickoffs.append(delta)
                 except ValueError:
                     pass
 
         if upcoming_kickoffs:
-            # Sleep until 5 minutes before the next match, capped at 6 hours
             seconds_until_next = min(upcoming_kickoffs)
-            return min(int(seconds_until_next) - 300, 21600)
+            # Wake up 5 min before next match, but never sleep longer than 30 min
+            # so we don't miss schedule changes or late API updates
+            return min(int(seconds_until_next) - 300, 1800)
 
-        return 3600  # no upcoming matches found — check once an hour
+        return 1800  # no matches found — check every 30 min as safety net
 
     async def poll(self, on_update: Callable[[List[Match]], Awaitable[None]]) -> None:
         """Poll adaptively: fast during live matches, slow otherwise."""
