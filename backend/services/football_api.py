@@ -134,7 +134,12 @@ class FootballAPIClient:
                 return 120  # result arrived but not yet confirmed — stay alert
             if m.scheduled_at:
                 try:
-                    kickoff = datetime.fromisoformat(m.scheduled_at.replace("Z", "+00:00"))
+                    if isinstance(m.scheduled_at, str):
+                        kickoff = datetime.fromisoformat(m.scheduled_at.replace("Z", "+00:00"))
+                    else:
+                        kickoff = m.scheduled_at
+                    if kickoff.tzinfo is None:
+                        kickoff = kickoff.replace(tzinfo=timezone.utc)
                     delta = (kickoff - now).total_seconds()
                     # 30 min before kickoff up to 3 hours after — covers stoppage + extra time
                     if -10800 < delta < 1800:
