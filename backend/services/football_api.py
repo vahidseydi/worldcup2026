@@ -62,8 +62,14 @@ def _parse_match(raw: dict) -> Match | None:
 
         home_tla = raw["homeTeam"].get("tla")
         away_tla = raw["awayTeam"].get("tla")
+
         if not home_tla or not away_tla:
-            return None  # placeholder slot — teams not yet determined
+            if stage == MatchStage.R32:
+                # TBD slot — keep so monte carlo can see correct bracket ordering
+                home_tla = home_tla or "_TBD"
+                away_tla = away_tla or "_TBD"
+            else:
+                return None  # placeholder for other stages — skip
         home_tla = _TLA_ALIASES.get(home_tla, home_tla)
         away_tla = _TLA_ALIASES.get(away_tla, away_tla)
 
