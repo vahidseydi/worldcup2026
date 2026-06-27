@@ -217,12 +217,17 @@ class MonteCarloSimulator:
                 as_ = 2 * slot_pair + 1
                 info = _R32_BRACKET.get(fix.match_id)
 
-                if fix.home in team_idx:
+                # Only use API-supplied teams for *finished* R32 matches.
+                # Unplayed (TIMED) slots can have wrong TLAs from premature
+                # bracket draws, so always derive from the hardcoded structure.
+                confirmed = fix.result is not None
+
+                if confirmed and fix.home in team_idx:
                     bracket[:, hs] = team_idx[fix.home]
                 elif info:
                     _fill(hs, *info[0])
 
-                if fix.away in team_idx:
+                if confirmed and fix.away in team_idx:
                     bracket[:, as_] = team_idx[fix.away]
                 elif info:
                     _fill(as_, *info[1])
