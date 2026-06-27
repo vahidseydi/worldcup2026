@@ -50,6 +50,8 @@ class Fixture:
     result: Optional[str] = None     # 'home_win' | 'draw' | 'away_win'; None = TBD
     match_id: int = 0
     stage: str = "group"
+    home_score: Optional[int] = None
+    away_score: Optional[int] = None
 
 
 # Encode results as integers for fast array arithmetic
@@ -105,18 +107,19 @@ class MonteCarloSimulator:
             al = local_map[fix.away]
 
             if fix.result is not None:
-                # Confirmed result — identical across all n simulations
+                # Confirmed result — use actual scores for precise tiebreakers
                 res = fix.result
+                hg = fix.home_score or 0
+                ag = fix.away_score or 0
+                diff = hg - ag
+                group_gf[gi][:, hl] += hg
+                group_gf[gi][:, al] += ag
+                group_gd[gi][:, hl] += diff
+                group_gd[gi][:, al] -= diff
                 if res == "home_win":
                     group_pts[gi][:, hl] += 3
-                    group_gd[gi][:, hl] += 1
-                    group_gd[gi][:, al] -= 1
-                    group_gf[gi][:, hl] += 1
                 elif res == "away_win":
                     group_pts[gi][:, al] += 3
-                    group_gd[gi][:, al] += 1
-                    group_gd[gi][:, hl] -= 1
-                    group_gf[gi][:, al] += 1
                 else:  # draw
                     group_pts[gi][:, hl] += 1
                     group_pts[gi][:, al] += 1

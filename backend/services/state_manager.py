@@ -38,6 +38,8 @@ def _build_fixtures(matches: List[Match]) -> List[Fixture]:
             result=_result_str(m.result) if m.result else None,
             match_id=m.id,
             stage=m.stage.value,
+            home_score=m.home_score,
+            away_score=m.away_score,
         )
         for m in matches
     ]
