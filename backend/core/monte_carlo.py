@@ -146,9 +146,9 @@ class MonteCarloSimulator:
         best8       = third_g[arange_n[:, None], best8_cols]  # (n, 8)
 
         # ── Build R32 bracket ────────────────────────────────────────────
-        # Use actual R32 fixtures from the API (sorted by match_id = official
-        # bracket order). "_TBD" sentinels mark slots whose teams aren't yet
-        # determined; those slots fall back to simulation results.
+        # Sort API fixtures by match_id = official bracket slot order.
+        # Confirmed teams are placed directly; TBD slots are filled from
+        # simulation results, avoiding same-group pairings.
         _TBD = "_TBD"
 
         r32_fixtures = sorted(
@@ -158,47 +158,72 @@ class MonteCarloSimulator:
 
         bracket = np.empty((n, 32), dtype=np.int32)
 
-        if len(r32_fixtures) >= 16:
-            # Collect teams already placed by confirmed R32 fixtures
-            confirmed_tis: set = set()
-            for f in r32_fixtures[:16]:
-                if f.home in team_idx:
-                    confirmed_tis.add(team_idx[f.home])
-                if f.away in team_idx:
-                    confirmed_tis.add(team_idx[f.away])
+        # Collect teams already confirmed in the API bracket
+        confirmed_tis: set = set()
+        for f in r32_fixtures[:16]:
+            if f.home in team_idx:
+                confirmed_tis.add(team_idx[f.home])
+            if f.away in team_idx:
+                confirmed_tis.add(team_idx[f.away])
 
-            # Build pool of simulation-derived positions for TBD slots:
-            # include any group whose winner/runner is not in a confirmed fixture,
-            # and any group whose outcome is still uncertain across simulations.
-            available: list = []
+        if len(r32_fixtures) >= 16 and confirmed_tis:
+            # Build pool: (simulation column, group_index) for unconfirmed positions.
+            # Thirds use negative group indices so they're treated as distinct groups.
+            _pool = []
             for i in range(n_groups):
                 ti_f = int(first_g[0, i])
                 ti_s = int(second_g[0, i])
                 if not bool(np.all(first_g[:, i] == ti_f)) or ti_f not in confirmed_tis:
-                    available.append(first_g[:, i])
+                    _pool.append((first_g[:, i], i))
                 if not bool(np.all(second_g[:, i] == ti_s)) or ti_s not in confirmed_tis:
-                    available.append(second_g[:, i])
+                    _pool.append((second_g[:, i], i))
             for j in range(8):
                 ti_b = int(best8[0, j])
                 if not bool(np.all(best8[:, j] == ti_b)) or ti_b not in confirmed_tis:
-                    available.append(best8[:, j])
+                    _pool.append((best8[:, j], -(j + 1)))
 
-            avail_idx = 0
+            # Map team index → group index for same-group exclusion
+            ti_to_grp = {}
+            for gi, (g, teams) in enumerate(group_list):
+                for t in teams:
+                    ti_to_grp[team_idx[t]] = gi
+
+            _used: set = set()
+
+            def _pick(exclude_gi=-9999):
+                for k, (col, gi) in enumerate(_pool):
+                    if k not in _used and gi != exclude_gi:
+                        _used.add(k)
+                        return col, gi
+                # fallback: relax same-group constraint
+                for k, (col, gi) in enumerate(_pool):
+                    if k not in _used:
+                        _used.add(k)
+                        return col, gi
+                return None, -9999
+
             for slot_pair, fix in enumerate(r32_fixtures[:16]):
                 hs = 2 * slot_pair
                 as_ = 2 * slot_pair + 1
+                home_gi = -9999
+
                 if fix.home in team_idx:
-                    bracket[:, hs] = team_idx[fix.home]
-                elif avail_idx < len(available):
-                    bracket[:, hs] = available[avail_idx]
-                    avail_idx += 1
+                    ti_h = team_idx[fix.home]
+                    bracket[:, hs] = ti_h
+                    home_gi = ti_to_grp.get(ti_h, -9999)
+                else:
+                    col, home_gi = _pick()
+                    if col is not None:
+                        bracket[:, hs] = col
+
                 if fix.away in team_idx:
                     bracket[:, as_] = team_idx[fix.away]
-                elif avail_idx < len(available):
-                    bracket[:, as_] = available[avail_idx]
-                    avail_idx += 1
+                else:
+                    col, _ = _pick(exclude_gi=home_gi)
+                    if col is not None:
+                        bracket[:, as_] = col
         else:
-            # No API bracket data yet — use rotation heuristic until R32 draw is known
+            # No confirmed R32 teams yet — rotation heuristic (avoids same-group)
             for i in range(n_groups):
                 bracket[:, 2 * i]     = first_g[:, i]
                 bracket[:, 2 * i + 1] = second_g[:, (i + 1) % n_groups]
